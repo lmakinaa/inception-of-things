@@ -1,2 +1,6 @@
 .claude/
 subject/
+**/.vagrant/
+**/.resources/
+**/.quizzs/
+**/.env
