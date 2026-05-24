@@ -1,0 +1,21 @@
+# Template: ${VAR} placeholders are filled by envsubst before `netplan apply`.
+# Same file is rendered per VM (server vs worker) with different env values.
+
+# Top-level container; netplan v2 schema.
+network:
+  version: 2
+  # Wired-NIC section (the only kind we configure here).
+  ethernets:
+    # YAML label only — not the real interface name; that comes from set-name.
+    private_net:
+      # Identify the NIC by hardware MAC, immune to kernel rename order.
+      match:
+        macaddress: ${INSTANCE_MAC_ADDR}
+      # Force a stable, predictable interface name regardless of udev naming.
+      set-name: privnet0
+      # No DHCP server exists on the QEMU socket LAN — must be static.
+      dhcp4: false
+      # Static IP for this VM; /24 puts both VMs in the same subnet so they
+      # can reach each other directly over privnet0.
+      addresses:
+        - ${INSTANCE_IP}/24
