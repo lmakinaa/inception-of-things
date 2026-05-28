@@ -7,7 +7,7 @@
 #  - eth0 = QEMU user-mode NAT (SSH from host, internet)
 #  - eth1 = QEMU socket network shared between the two VMs; the subject's
 #           fixed 192.168.56.110/.111 IPs are set inside the guests via
-#           scripts/network.sh (netplan).
+#           deps/network.sh (netplan).
 # The server opens the socket; the worker connects to it.
 
 # --- Load .env (plain KEY=value; Vagrant has no built-in loader, and the
@@ -60,7 +60,7 @@ Vagrant.configure("2") do |config|
 
     # ALL THIS JUST TO SET UP THE VM IP (BECAUSE QEMU DOESN'T SUPPORT config.vm.network).
     srv.vm.provision "file",
-      source: "../scripts/netplan_config",
+      source: "../deps/netplan_config",
       destination: "/tmp/netplan_config"
     srv.vm.provision "shell",
       env: {
@@ -69,7 +69,7 @@ Vagrant.configure("2") do |config|
       },
       inline: <<~SHELL
         set -e
-        cd /tmp/netplan_config && envsubst < ./deps/99-private-network-init.yaml > /etc/netplan/99-private-network-init.yaml
+        cd /tmp/netplan_config && envsubst < ./99-private-network-init.yaml > /etc/netplan/99-private-network-init.yaml
         chmod 600 /etc/netplan/99-private-network-init.yaml
         netplan apply
       SHELL
@@ -103,7 +103,7 @@ Vagrant.configure("2") do |config|
 
     # ALL THIS JUST TO SET UP THE VM IP (BECAUSE QEMU DOESN'T SUPPORT config.vm.network).
     worker.vm.provision "file",
-      source: "../scripts/netplan_config",
+      source: "../deps/netplan_config",
       destination: "/tmp/netplan_config"
     worker.vm.provision "shell",
       env: {
@@ -112,7 +112,7 @@ Vagrant.configure("2") do |config|
       },
       inline: <<~SHELL
         set -e
-        cd /tmp/netplan_config && envsubst < ./deps/99-private-network-init.yaml > /etc/netplan/99-private-network-init.yaml
+        cd /tmp/netplan_config && envsubst < ./99-private-network-init.yaml > /etc/netplan/99-private-network-init.yaml
         chmod 600 /etc/netplan/99-private-network-init.yaml
         netplan apply
       SHELL
