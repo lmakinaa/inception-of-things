@@ -1,0 +1,85 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+#
+# Part 1 - K3s + Vagrant on Apple Silicon (QEMU provider).
+#
+# vagrant-qemu has no high-level networking, so:
+#  - eth0 = QEMU user-mode NAT (SSH from host, internet)
+#  - eth1 = QEMU socket network shared between the two VMs; the subject's
+#           fixed 192.168.56.110/.111 IPs are set inside the guests via
+#           deps/network.sh (netplan).
+# The server opens the socket; the worker connects to it.
+
+# --- Load .env (plain KEY=value; Vagrant has no built-in loader, and the
+# vagrant-env plugin is broken on modern Ruby — File.exists? was removed).
+# Zero-dependency parser keeps `vagrant up` working on any machine.
+require "pathname"
+ENV['VAGRANT_NO_PARALLEL'] = 'yes'
+env_file = Pathname.new(__dir__).join("..", ".env")
+abort("Missing .env — copy .env.example to .env") unless env_file.exist?
+
+# Parse .env file
+ENV_VARS = {}
+env_file.each_line do |line|
+  line = line.strip
+  next if line.empty? || line.start_with?("#")
+  key, _, val = line.partition("=")
+  ENV_VARS[key.strip] = val.strip.gsub(/\A["']|["']\z/, "")
+end
+
+LOGIN  = ENV_VARS.fetch("LOGIN")
+SERVER = "#{LOGIN}S"     # controller node
+WORKER = "#{LOGIN}SW"    # agent node
+
+SERVER_IP        = ENV_VARS.fetch("SERVER_IP")
+VMS_MAC_ADDR     = ENV_VARS.fetch("VMS_MAC_ADDR")
+SERVER_SSH_PORT  = ENV_VARS.fetch("SERVER_SSH_PORT").to_i
+LAN_PORT         = ENV_VARS.fetch("LAN_PORT").to_i
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "perk/ubuntu-2204-arm64"
+
+  # ----- Server (K3s controller) -----
+  config.vm.define SERVER do |srv|
+    srv.vm.hostname = SERVER
+    srv.vm.provider "qemu" do |qe|
+      qe.smp        = 2
+      qe.memory     = "2048"
+      qe.ssh_port   = SERVER_SSH_PORT
+
+      # Second NIC: socket network card, server side (listen).
+      qe.extra_qemu_args = [
+        "-device", "virtio-net-pci,netdev=lan,mac=#{VMS_MAC_ADDR}",
+        "-netdev", "socket,id=lan,listen=:#{LAN_PORT}"
+      ]
+    end
+
+    # ALL THIS JUST TO SET UP THE VM IP (BECAUSE QEMU DOESN'T SUPPORT config.vm.network).
+    srv.vm.provision "file",
+      source: "../deps/netplan_config",
+      destination: "/tmp/netplan_config"
+    srv.vm.provision "shell",
+      env: {
+        "INSTANCE_MAC_ADDR" => VMS_MAC_ADDR,
+        "INSTANCE_IP"       => SERVER_IP
+      },
+      inline: <<~SHELL
+        set -e
+        cd /tmp/netplan_config && envsubst < ./99-private-network-init.yaml > /etc/netplan/99-private-network-init.yaml
+        chmod 600 /etc/netplan/99-private-network-init.yaml
+        netplan apply
+      SHELL
+
+    # Install K3S
+    srv.vm.provision "shell",
+      env: {
+        "INSTANCE_IP"       => SERVER_IP
+      },
+      inline: <<~SHELL
+        set -e
+        curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--node-ip=$INSTANCE_IP" sh -
+      SHELL
+  end
+
+
+end

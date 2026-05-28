@@ -1,0 +1,114 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns1
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: ns1
+  name: conf-map-1
+data:
+  app1.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>App 1</title>
+      <style>
+        body {
+          font-family: system-ui, sans-serif;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 100vh;
+          margin: 0;
+          background: #1e3a8a;
+          color: white;
+        }
+        h1 { font-size: 4rem; }
+      </style>
+    </head>
+    <body>
+      <h1>App 1</h1>
+    </body>
+    </html>
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-1
+  namespace: ns1
+  labels:
+    deployment: deployment-1
+spec:
+  replicas: 1 # (default)
+  selector:
+    matchLabels:
+      app: app1
+  
+  template:
+    metadata:
+      labels:
+        app: app1
+    spec:
+      containers:
+        - name: app1
+          image: nginx:alpine
+          ports: # It does nothing
+            - name: http
+              containerPort: 80
+              protocol: TCP
+
+          volumeMounts:
+            - mountPath: /usr/share/nginx/html/index.html
+              name: app1-src
+              subPath: app1.html
+
+      volumes:
+        - name: app1-src
+          configMap:
+            name: conf-map-1
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: ns1
+  name: app1
+spec:
+  type: ClusterIP # (default)
+  selector:
+    app: app1
+  ports:
+    - protocol: TCP
+      name: http
+      port: 8000
+      targetPort: 80
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: apps
+  namespace: ns1
+spec:
+  rules:
+    - host: app1.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app1
+                port:
+                  name: http
+
+
