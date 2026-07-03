@@ -91,7 +91,8 @@ kubectl create namespace "$DEV_NS"    --dry-run=client -o yaml | kubectl apply -
 
 # --- 7. Argo CD ---------------------------------------------------------------
 log "Installing Argo CD into '$ARGOCD_NS'"
-kubectl apply -n "$ARGOCD_NS" \
+
+kubectl apply --server-side --force-conflicts -n "$ARGOCD_NS" \
   -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 log "Waiting for Argo CD to become ready (this can take a couple of minutes)"

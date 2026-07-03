@@ -19,7 +19,7 @@ spec:
 
   source:
     repoURL: https://github.com/lmakinaa/k3d-test-project
-    targetRevision: v1.*                  # track highest Git tag in the v1 line
+    targetRevision: HEAD                  
     path: manifests                       # folder in the repo holding the k8s YAML
     directory:
       recurse: true                       # also read manifests in subfolders
