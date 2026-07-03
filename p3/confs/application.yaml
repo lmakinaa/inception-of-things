@@ -1,0 +1,40 @@
+# Argo CD Application — declarative definition of the GitOps app.
+#
+# This is the click-ops app from the UI, captured as code so the whole
+# setup is reproducible: `kubectl apply -f` recreates it from scratch.
+#
+# It tells Argo CD: watch the public GitHub repo, take the manifests under
+# `manifests/`, and keep the `dev` namespace in sync with them automatically.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inception-of-things
+  namespace: argocd                       # the Application object lives in argocd
+  finalizers:
+    # On `argocd app delete` / `kubectl delete`, cascade-delete the app's
+    # resources (Deployment, Service) instead of orphaning them in dev.
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/lmakinaa/k3d-test-project
+    targetRevision: v1.*                  # track highest Git tag in the v1 line
+    path: manifests                       # folder in the repo holding the k8s YAML
+    directory:
+      recurse: true                       # also read manifests in subfolders
+
+  destination:
+    server: https://kubernetes.default.svc  # this same (in-cluster) k3d cluster
+    namespace: dev                          # deploy the app into the dev namespace
+
+  syncPolicy:
+    automated:                            # full GitOps automation
+      prune: true                         # delete resources removed from Git
+      selfHeal: true                      # revert manual cluster edits back to Git
+    syncOptions:
+      - CreateNamespace=true              # create `dev` if it doesn't exist
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - PruneLast=true
+      - RespectIgnoreDifferences=true

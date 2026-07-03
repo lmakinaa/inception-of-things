@@ -4,3 +4,6 @@ subject/
 **/.resources/
 **/.quizzs/
 **/.env
+**/p3/confs/Vagrantfile
+**/p3/.env.example
+**/p3/test-app/
